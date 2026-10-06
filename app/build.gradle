@@ -3,7 +3,7 @@ android {
     namespace 'com.marketdesk'
     compileSdk 35
     buildToolsVersion '35.0.0'
-    defaultConfig { applicationId 'com.marketdesk'; minSdk 26; targetSdk 35; versionCode 17; versionName '1.7.8' }
+    defaultConfig { applicationId 'com.marketdesk'; minSdk 26; targetSdk 35; versionCode 18; versionName '1.7.9' }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
 }
 dependencies { implementation 'androidx.work:work-runtime:2.9.1'; testImplementation 'junit:junit:4.13.2'; testImplementation 'org.json:json:20240303' }

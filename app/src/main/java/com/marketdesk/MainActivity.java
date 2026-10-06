@@ -109,7 +109,7 @@ public class MainActivity extends Activity {
   String change=q.has("change")?String.format(Locale.CHINA,"%+.2f%%",q.optDouble("change")):"—";
   String status=!q.has("price")?prefs().getString("error:"+item[1],"等待行情"):q.optString("source")+(Quotes.historical(q)?" · 历史行情":"")+(prefs().contains("error:"+item[1])?"\n"+prefs().getString("error:"+item[1],"")+"，保留缓存":System.currentTimeMillis()-q.optLong("received")>20*60000?" · 缓存待更新":"");
   String message="行情代码："+item[1]+"\n\n最新价："+price+(q.optString("unit").isEmpty()?"":" "+q.optString("unit"))+"\n涨跌幅："+change+"\n行情时间："+q.optString("time","—")+"（北京时间）\n\n数据状态："+status+"\n\n涨跌幅以上一交易日收盘价为基准。行情可能延迟。";
-  new AlertDialog.Builder(this).setTitle(item[0]).setMessage(message).setPositiveButton("关闭",null).show();
+  new AlertDialog.Builder(this).setTitle(item[0]).setMessage(message+"\n\n交叉验证："+Quotes.verificationDetails(q)+"\n\n时间相近或同日历史数据才比较；价格容差0.1%，涨跌幅容差0.05个百分点。免费来源可能共享上游，不等于交易所独立确认。").setPositiveButton("关闭",null).show();
  }
 
  private void renderWidget(){
@@ -186,7 +186,7 @@ public class MainActivity extends Activity {
   label(live,"每轮请求结束后等待所选间隔再刷新，App和小部件一起更新。最长2小时，显示常驻通知；越快越耗电，也更容易被行情源限流。",11,MUTED,false);content.addView(live);gap(content,14);
   LinearLayout system=card();label(system,"后台与通知",18,TEXT,true);label(system,"若 HyperOS 限制后台，可检查自启动、通知和应用省电设置。默认后台刷新约15分钟，系统可能延后。",12,MUTED,false);
   action(system,"打开应用系统设置",false,()->{try{startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:"+getPackageName())));}catch(RuntimeException e){toast("请从手机设置中打开行情桌面的应用详情");}});content.addView(system);gap(content,16);
-  label(content,"行情桌面  1.7.8\n行情来源：Yahoo / 东方财富 / 天天基金\n场外基金为估算，黄金期货非实物黄金报价。",11,MUTED,false);
+  label(content,"行情桌面  1.7.9\n免费多源监测：Yahoo / 东方财富 / 腾讯财经\n交叉核对详情见自选「更多」，备用源最多缓存60秒。\n场外基金为单源估算。",11,MUTED,false);
  }
 
  private void startLive(){if(Build.VERSION.SDK_INT>=33 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS},7);return;}
