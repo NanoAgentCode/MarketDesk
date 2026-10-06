@@ -7,20 +7,29 @@ import android.graphics.Color;
 import org.json.JSONObject;
 import java.util.*;
 public class MarketWidget extends AppWidgetProvider {
+ public static final class DisplaySnapshot {
+  public final Map<String,?> values;
+  public final long time;
+  private DisplaySnapshot(Context c){values=Collections.unmodifiableMap(new HashMap<>(c.getSharedPreferences("market",0).getAll()));time=System.currentTimeMillis();}
+ }
+ public static DisplaySnapshot snapshot(Context c){return new DisplaySnapshot(c);}
  public void onUpdate(Context c,AppWidgetManager m,int[] ids){RefreshWorker.schedule(c);render(c);RefreshWorker.now(c);}
  public void onReceive(Context c,Intent i){super.onReceive(c,i);if("com.marketdesk.REFRESH".equals(i.getAction())) RefreshWorker.now(c);}
  public void onDisabled(Context c){androidx.work.WorkManager.getInstance(c).cancelUniqueWork("quotes-periodic");}
  public static void render(Context c){
+  render(c,snapshot(c));
+ }
+ public static void render(Context c,DisplaySnapshot batch){
   AppWidgetManager m=AppWidgetManager.getInstance(c);
-  Map<String,?> saved=c.getSharedPreferences("market",0).getAll();
   for(int id:m.getAppWidgetIds(new ComponentName(c,MarketWidget.class))){
    int height=m.getAppWidgetOptions(id).getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT,280);
-   m.updateAppWidget(id,views(c,height,saved));
+   m.updateAppWidget(id,views(c,height,batch));
   }
  }
- public static RemoteViews views(Context c,int height,Map<String,?> saved){
+ public static RemoteViews views(Context c,int height,DisplaySnapshot batch){
+  Map<String,?> saved=batch.values;
   RemoteViews v=new RemoteViews(c.getPackageName(),R.layout.widget);v.removeAllViews(R.id.rows);
-  for(WidgetPresentation.Row item:WidgetPresentation.rows(saved,height,System.currentTimeMillis())){
+  for(WidgetPresentation.Row item:WidgetPresentation.rows(saved,height,batch.time)){
    RemoteViews row=new RemoteViews(c.getPackageName(),R.layout.quote_row);
    row.setTextViewText(R.id.name,item.name);row.setTextViewText(R.id.meta,item.meta);
    row.setTextViewText(R.id.price,item.price);row.setTextViewText(R.id.change,item.change);row.setTextColor(R.id.change,item.color);

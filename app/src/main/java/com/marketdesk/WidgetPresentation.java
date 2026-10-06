@@ -10,7 +10,7 @@ public final class WidgetPresentation {
   public final int color;
   Row(String name,String code,String meta,String price,String change,int color){this.name=name;this.code=code;this.meta=meta;this.price=price;this.change=change;this.color=color;}
  }
- public static int capacity(int height){return Math.max(1,Math.min(10,(height-100)/54));}
+ public static int capacity(int height){return Math.max(1,Math.min(10,(height-100)/42));}
  public static List<Row> rows(Map<String,?> saved,int height,long now){
   List<Row> out=new ArrayList<>();String watch=saved.get("watch") instanceof String?(String)saved.get("watch"):Quotes.DEFAULTS;
   for(String line:watch.split("\\n")){

@@ -117,6 +117,7 @@ public class MainActivity extends Activity {
   widgetPreviewInfo=label(content,"",12,MUTED,false);widgetPreviewInfo.setOnClickListener(v->choosePreviewWidget());
   widgetPreviewHost=new FrameLayout(this);content.addView(widgetPreviewHost,new LinearLayout.LayoutParams(-1,dp(280)));refreshWidgetPreview(true);
   label(content,"预览与小部件共用布局及行情，较大尺寸会缩放。点击上方可切换小部件。",11,MUTED,false);gap(content,20);
+  action(content,"编辑名称 / 代码",false,()->editWatchlist());
   action(content,"＋  添加到桌面",true,()->requestWidget());pinStatus=label(content,"",12,MUTED,false);updatePinStatus();gap(content,16);
   LinearLayout help=card();label(help,"没有弹出添加窗口？",16,TEXT,true);label(help,"桌面由系统处理添加请求。可以直接在手机桌面手动选择小部件。",12,MUTED,false);gap(help,8);
   label(help,"01  回到桌面，长按空白位置或双指捏合\n02  打开「小部件 / 添加小部件」\n03  找到「行情桌面」，拖到空白区域",13,TEXT,false);
@@ -134,10 +135,10 @@ public class MainActivity extends Activity {
   int width=Math.max(180,options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH,300)),height=Math.max(120,options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT,280));
   String signature=snapshot()+"/"+previewWidgetId+"/"+width+"/"+height;
   if(!force&&signature.equals(widgetPreviewSignature))return;widgetPreviewSignature=signature;
-  MarketWidget.render(this);
-  Map<String,?> saved=prefs().getAll();int count=WidgetPresentation.rows(saved,height,System.currentTimeMillis()).size();
+  MarketWidget.DisplaySnapshot batch=MarketWidget.snapshot(this);MarketWidget.render(this,batch);
+  int count=WidgetPresentation.rows(batch.values,height,batch.time).size();
   widgetPreviewInfo.setText((previewWidgetId==0?"默认尺寸预览（尚未添加）":"小部件 #"+previewWidgetId)+" · "+width+" × "+height+" · 显示 "+count+" 项");
-  widgetPreviewHost.removeAllViews();View rendered=MarketWidget.views(this,height,saved).apply(this,widgetPreviewHost);
+  widgetPreviewHost.removeAllViews();View rendered=MarketWidget.views(this,height,batch).apply(this,widgetPreviewHost);
   int available=getResources().getDisplayMetrics().widthPixels-dp(40);float scale=Math.min(1f,(float)Math.max(dp(180),available)/dp(width));
   rendered.setPivotX(0);rendered.setPivotY(0);rendered.setScaleX(scale);rendered.setScaleY(scale);widgetPreviewHost.addView(rendered,new FrameLayout.LayoutParams(dp(width),dp(height)));
   widgetPreviewHost.getLayoutParams().height=Math.round(dp(height)*scale);widgetPreviewHost.requestLayout();
@@ -182,7 +183,7 @@ public class MainActivity extends Activity {
   label(live,"最长2小时，开启时显示常驻通知。系统省电和行情源延迟仍可能影响更新。",11,MUTED,false);content.addView(live);gap(content,14);
   LinearLayout system=card();label(system,"后台与通知",18,TEXT,true);label(system,"若 HyperOS 限制后台，可检查自启动、通知和应用省电设置。默认后台刷新约15分钟，系统可能延后。",12,MUTED,false);
   action(system,"打开应用系统设置",false,()->{try{startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:"+getPackageName())));}catch(RuntimeException e){toast("请从手机设置中打开行情桌面的应用详情");}});content.addView(system);gap(content,16);
-  label(content,"行情桌面  1.7\n行情来源：Yahoo / 东方财富 / 天天基金\n场外基金为估算，黄金期货非实物黄金报价。",11,MUTED,false);
+  label(content,"行情桌面  1.7.2\n行情来源：Yahoo / 东方财富 / 天天基金\n场外基金为估算，黄金期货非实物黄金报价。",11,MUTED,false);
  }
 
  private void startLive(){if(Build.VERSION.SDK_INT>=33 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS},7);return;}
@@ -222,7 +223,7 @@ public class MainActivity extends Activity {
  private EditText editorInput(String value,String hint,boolean code){EditText input=new EditText(this);input.setTextColor(TEXT);input.setHintTextColor(MUTED);input.setTextSize(13);input.setPadding(dp(5),dp(10),dp(5),dp(10));input.setMinHeight(dp(64));input.setSelectAllOnFocus(false);input.setInputType(android.text.InputType.TYPE_CLASS_TEXT|(code?android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS:0));input.setSingleLine(code);if(!code){input.setMaxLines(3);input.setHorizontallyScrolling(false);}input.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_DONE);input.setHint(hint);input.setText(value);return input;}
  private void editorControl(LinearLayout parent,String value,String description,boolean enabled,Runnable task){TextView control=label(null,value,20,enabled?(value.equals("×")?RED:ACCENT):MUTED,true);control.setGravity(Gravity.CENTER);control.setContentDescription(description);control.setEnabled(enabled);control.setAlpha(enabled?1:0.3f);control.setMinHeight(dp(48));control.setOnClickListener(v->task.run());parent.addView(control,new LinearLayout.LayoutParams(dp(48),dp(48)));}
  private void addPreset(){String[] names={"黄金ETF（518880）","黄金期货（美元/盎司）","苹果","腾讯","标普500指数","沪深300指数","纳斯达克100ETF（QQQ）"};String[] codes={"E:1.518880","Y:GC=F","Y:AAPL","Y:0700.HK","Y:^GSPC","E:1.000300","Y:QQQ"};new AlertDialog.Builder(this).setTitle("添加常用标的").setItems(names,(d,index)->{for(String[] item:Quotes.items(this))if(item[1].equals(codes[index])){toast("已在自选列表中");return;}try{saveWatch(Quotes.watch(this).trim()+"\n"+names[index]+"|"+codes[index]);}catch(IllegalArgumentException e){toast(e.getMessage());}}).setNegativeButton("取消",null).show();}
- private void saveWatch(String value){Quotes.validate(value);prefs().edit().putString("watch",value).apply();MarketWidget.render(this);RefreshWorker.now(this);switchPage(page);toast("自选已保存");}
+ private void saveWatch(String value){Quotes.validate(value);prefs().edit().putString("watch",value).apply();MarketWidget.render(this);RefreshWorker.afterEdit(this);switchPage(page);toast("自选已保存，已同步到桌面小部件");}
  private String quoteStatus(String code,JSONObject q){if(!q.has("price"))return prefs().getString("error:"+code,"正在等待行情");boolean failed=prefs().contains("error:"+code);boolean stale=System.currentTimeMillis()-q.optLong("received")>20*60000;return q.optString("time")+" · "+q.optString("source")+(Quotes.historical(q)?" · 历史行情":"")+(failed?" · 更新失败，缓存":stale?" · 缓存待更新":"");}
  private String market(String code){if(code.startsWith("F:"))return "基金估算";if(code.equals("Y:GC=F"))return "黄金期货";if(code.endsWith(".HK")||code.equals("E:2.931250"))return "港股 / 指数";if(code.startsWith("E:")||code.endsWith(".SS")||code.endsWith(".SZ"))return "A股 / 指数 / ETF";return "美股 / 指数 / ETF";}
  private int changeColor(JSONObject q){return q.optDouble("change")>0?RED:q.optDouble("change")<0?GREEN:MUTED;}
