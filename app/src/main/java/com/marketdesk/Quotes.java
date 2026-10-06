@@ -46,7 +46,11 @@ public final class Quotes {
     try {
      JSONObject result=EastmoneyParser.daily(get("https://push2his.eastmoney.com/api/qt/stock/kline/get?secid="+secid+"&klt=101&fqt=0&lmt=2&end=20500101&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61"),secid);
      return finishEastmoney(result);
-    }catch(Exception dailyError){dailyError.addSuppressed(latestError);dailyError.addSuppressed(trendsError);throw dailyError;}
+    }catch(Exception dailyError){
+     String symbol=QuoteCode.yahooFallback(secid);
+     if(!symbol.isEmpty())try{return fetch("Y:"+symbol).put("source","Yahoo · 同代码备用行情（可能延迟）").put("kind","fallback");}catch(Exception backupError){dailyError.addSuppressed(backupError);}
+     dailyError.addSuppressed(latestError);dailyError.addSuppressed(trendsError);throw dailyError;
+    }
    }
   }
  }
@@ -68,6 +72,7 @@ public final class Quotes {
   JSONObject q=new JSONObject(); double price, change; String time, unit, source;
   if(code.startsWith("Y:")) {
    JSONObject m=new JSONObject(get("https://query1.finance.yahoo.com/v8/finance/chart/"+URLEncoder.encode(code.substring(2),"UTF-8")+"?interval=1d&range=5d")).getJSONObject("chart").getJSONArray("result").getJSONObject(0).getJSONObject("meta");
+   if(!m.getString("symbol").equalsIgnoreCase(code.substring(2)))throw new IOException("返回代码不匹配");
    price=m.getDouble("regularMarketPrice"); double prev=m.getDouble("chartPreviousClose");
    // previousClose is the previous trading session; chartPreviousClose may be the range baseline.
    if(m.has("previousClose")) prev=m.getDouble("previousClose");
