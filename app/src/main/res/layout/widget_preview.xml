@@ -1,0 +1,6 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:background="@drawable/widget_bg">
+ <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="行情桌面  ↗" android:textColor="#EEF4FC" android:textSize="18sp" android:textStyle="bold" android:paddingBottom="12dp"/>
+ <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="纳斯达克指数                  —\n\n纳斯达克100                   —\n\n恒生科技指数                  —\n\n港股通创新药指数              —\n\n电网设备ETF                   —" android:textColor="#EEF4FC" android:textSize="12sp"/>
+ <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="添加后展示自选行情" android:textColor="#94A6BD" android:textSize="10sp" android:paddingTop="12dp"/>
+ <TextView android:layout_width="match_parent" android:layout_height="40dp" android:gravity="center" android:text="↻ 刷新行情" android:textColor="#8AE3CE" android:textSize="14sp"/>
+</LinearLayout>
