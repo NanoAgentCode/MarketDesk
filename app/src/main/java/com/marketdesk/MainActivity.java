@@ -99,17 +99,18 @@ public class MainActivity extends Activity {
    TextView more=label(null,"更多",12,ACCENT,true);more.setGravity(Gravity.CENTER);more.setMinHeight(dp(48));more.setContentDescription("查看"+item[0]+"的最新价和数据状态");more.setOnClickListener(v->showQuoteDetails(item));line.addView(more,new LinearLayout.LayoutParams(dp(48),dp(64)));
    line.setOnClickListener(v->showQuoteDetails(item));table.addView(line);divider(table);
   }
-  content.addView(table,new LinearLayout.LayoutParams(-1,-2));gap(content,6);label(content,"点击「更多」查看最新价和数据状态\n红涨绿跌 · 基金为估算净值",11,MUTED,false);
+  content.addView(table,new LinearLayout.LayoutParams(-1,-2));gap(content,6);label(content,"点击「更多」查看价格、IOPV、基金净值与估值\n红涨绿跌 · 各数据时间独立标注",11,MUTED,false);
   pageScroll.post(()->{if(page==0)pageScroll.scrollTo(0,previousScroll);});
  }
 
  private void showQuoteDetails(String[] item){
   JSONObject q=Quotes.cached(this,item[1]);
-  String price=q.has("price")?String.format(Locale.CHINA,"%,.3f",q.optDouble("price")):"暂无行情";
+  String price=q.has("price")?String.format(Locale.CHINA,item[1].startsWith("F:")?"%,.4f":"%,.3f",q.optDouble("price")):"暂无行情";
   String change=q.has("change")?String.format(Locale.CHINA,"%+.2f%%",q.optDouble("change")):"—";
   String status=!q.has("price")?prefs().getString("error:"+item[1],"等待行情"):q.optString("source")+(Quotes.historical(q)?" · 历史行情":"")+(prefs().contains("error:"+item[1])?"\n"+prefs().getString("error:"+item[1],"")+"，保留缓存":System.currentTimeMillis()-q.optLong("received")>20*60000?" · 缓存待更新":"");
   String message="行情代码："+item[1]+"\n\n最新价："+price+(q.optString("unit").isEmpty()?"":" "+q.optString("unit"))+"\n涨跌幅："+change+"\n行情时间："+q.optString("time","—")+"（北京时间）\n\n数据状态："+status+"\n\n涨跌幅以上一交易日收盘价为基准。行情可能延迟。";
-  new AlertDialog.Builder(this).setTitle(item[0]).setMessage(message+"\n\n交叉验证："+Quotes.verificationDetails(q)+"\n\n时间相近或同日历史数据才比较；价格容差0.1%，涨跌幅容差0.05个百分点。免费来源可能共享上游，不等于交易所独立确认。").setPositiveButton("关闭",null).show();
+  if(item[1].startsWith("F:"))message=message.replace("最新价：",q.optString("kind").equals("nav")?"已公布净值：":"估算净值：").replace("涨跌幅：",q.optString("kind").equals("nav")?"净值涨跌幅（源未提供则为—）：":"估算涨跌幅：");
+  new AlertDialog.Builder(this).setTitle(item[0]).setMessage(message+FundData.details(q)+"\n\n交叉验证："+Quotes.verificationDetails(q)+"\n\n时间相近或同日历史数据才比较；价格容差0.1%，涨跌幅容差0.05个百分点。免费来源可能共享上游，不等于交易所独立确认。").setPositiveButton("关闭",null).show();
  }
 
  private void renderWidget(){
@@ -186,7 +187,8 @@ public class MainActivity extends Activity {
   label(live,"每轮请求结束后等待所选间隔再刷新，App和小部件一起更新。最长2小时，显示常驻通知；越快越耗电，也更容易被行情源限流。",11,MUTED,false);content.addView(live);gap(content,14);
   LinearLayout system=card();label(system,"后台与通知",18,TEXT,true);label(system,"若 HyperOS 限制后台，可检查自启动、通知和应用省电设置。默认后台刷新约15分钟，系统可能延后。",12,MUTED,false);
   action(system,"打开应用系统设置",false,()->{try{startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:"+getPackageName())));}catch(RuntimeException e){toast("请从手机设置中打开行情桌面的应用详情");}});content.addView(system);gap(content,16);
-  label(content,"行情桌面  1.7.9\n免费多源监测：Yahoo / 东方财富 / 腾讯财经\n交叉核对详情见自选「更多」，备用源最多缓存60秒。\n场外基金为单源估算。",11,MUTED,false);
+  LinearLayout funds=card();label(funds,"基金净值与估值",18,TEXT,true);label(funds,"ETF：更多中分别显示成交价、IOPV参考净值、折溢价和已公布净值。\n场外基金：来源选F，填六位代码；有盘中估值时显示估算，无估值时只显示已公布净值。\n免费来源可能延迟或缺失，各数据均保留自己的时间。",12,MUTED,false);action(funds,"添加基金 / ETF",false,()->addPreset());content.addView(funds);gap(content,14);
+  label(content,"行情桌面  1.8.0\n免费多源监测：Yahoo / 东方财富 / 腾讯财经\n成交行情交叉核对见自选「更多」，基金估值/IOPV另列。\n备用源及基金附加数据最多缓存60秒。",11,MUTED,false);
  }
 
  private void startLive(){if(Build.VERSION.SDK_INT>=33 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS},7);return;}
@@ -235,7 +237,7 @@ public class MainActivity extends Activity {
  }
  private EditText editorInput(String value,String hint,boolean code){EditText input=new EditText(this);input.setTextColor(TEXT);input.setHintTextColor(MUTED);input.setTextSize(13);input.setPadding(dp(5),dp(10),dp(5),dp(10));input.setMinHeight(dp(64));input.setSelectAllOnFocus(false);input.setInputType(android.text.InputType.TYPE_CLASS_TEXT|(code?android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS:0));input.setSingleLine(code);if(!code){input.setMaxLines(3);input.setHorizontallyScrolling(false);}input.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_DONE);input.setHint(hint);input.setText(value);return input;}
  private void editorControl(LinearLayout parent,String value,String description,boolean enabled,Runnable task){TextView control=label(null,value,20,enabled?(value.equals("×")?RED:ACCENT):MUTED,true);control.setGravity(Gravity.CENTER);control.setContentDescription(description);control.setEnabled(enabled);control.setAlpha(enabled?1:0.3f);control.setMinHeight(dp(48));control.setOnClickListener(v->task.run());parent.addView(control,new LinearLayout.LayoutParams(dp(48),dp(48)));}
- private void addPreset(){String[] names={"黄金ETF（518880）","黄金期货（美元/盎司）","苹果","腾讯","标普500指数","沪深300指数","纳斯达克100ETF（QQQ）"};String[] codes={"E:1.518880","Y:GC=F","Y:AAPL","Y:0700.HK","Y:^GSPC","E:1.000300","Y:QQQ"};new AlertDialog.Builder(this).setTitle("添加常用标的").setItems(names,(d,index)->{for(String[] item:Quotes.items(this))if(item[1].equals(codes[index])){toast("已在自选列表中");return;}try{saveWatch(Quotes.watch(this).trim()+"\n"+names[index]+"|"+codes[index]);}catch(IllegalArgumentException e){toast(e.getMessage());}}).setNegativeButton("取消",null).show();}
+ private void addPreset(){String[] names={"黄金ETF（518880）","黄金期货（美元/盎司）","苹果","腾讯","标普500指数","沪深300指数","纳斯达克100ETF（QQQ）","华安黄金ETF联接A（000216）","天弘食品饮料ETF联接C（001632）"};String[] codes={"E:1.518880","Y:GC=F","Y:AAPL","Y:0700.HK","Y:^GSPC","E:1.000300","Y:QQQ","F:000216","F:001632"};new AlertDialog.Builder(this).setTitle("添加常用标的").setItems(names,(d,index)->{for(String[] item:Quotes.items(this))if(item[1].equals(codes[index])){toast("已在自选列表中");return;}try{saveWatch(Quotes.watch(this).trim()+"\n"+names[index]+"|"+codes[index]);}catch(IllegalArgumentException e){toast(e.getMessage());}}).setNegativeButton("取消",null).show();}
  private void saveWatch(String value){Quotes.validate(value);prefs().edit().putString("watch",value).apply();MarketWidget.render(this);RefreshWorker.afterEdit(this);switchPage(page);toast("自选已保存，已同步到桌面小部件");}
  private String quoteStatus(String code,JSONObject q){if(!q.has("price"))return prefs().getString("error:"+code,"正在等待行情");boolean failed=prefs().contains("error:"+code);boolean stale=System.currentTimeMillis()-q.optLong("received")>20*60000;return q.optString("time")+" · "+q.optString("source")+(Quotes.historical(q)?" · 历史行情":"")+(failed?" · 更新失败，缓存":stale?" · 缓存待更新":"");}
  private String market(String code){if(code.startsWith("F:"))return "基金估算";if(code.equals("Y:GC=F"))return "黄金期货";if(code.endsWith(".HK")||code.equals("E:2.931250"))return "港股 / 指数";if(code.startsWith("E:")||code.endsWith(".SS")||code.endsWith(".SZ"))return "A股 / 指数 / ETF";return "美股 / 指数 / ETF";}

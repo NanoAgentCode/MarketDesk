@@ -21,9 +21,9 @@ public final class WidgetPresentation {
    boolean available=q.has("price"), failed=saved.containsKey("error:"+item[1]);
    boolean stale=now-q.optLong("received")>20*60*1000L;
    long dataTime=q.optLong("dataTime");boolean old=dataTime>0&&now-dataTime>24*60*60*1000L;
-   String meta=available?q.optString("time")+(old?" 历史":"")+(q.optString("kind").equals("minute")?" 分时":"")+(failed||stale?" 缓存":"")+(item[1].startsWith("F:")?" 估算":"")+(q.has("verificationShort")?" "+q.optString("verificationShort"):""):"暂不可用";
+   String meta=available?q.optString("time")+(old?" 历史":"")+(q.optString("kind").equals("minute")?" 分时":"")+(failed||stale?" 缓存":"")+(item[1].startsWith("F:")?(q.optString("kind").equals("nav")?" 已公布":" 估算"):"")+(q.has("verificationShort")?" "+q.optString("verificationShort"):""):"暂不可用";
    double change=q.optDouble("change");int color=change>0?0xffff6771:change<0?0xff41d399:0xffcccccc;
-   out.add(new Row(item[0],item[1],meta,available?String.format(Locale.CHINA,"%.3f",q.optDouble("price")):"—",q.has("change")?String.format(Locale.CHINA,"%+.2f%%",change):"—",color));
+   out.add(new Row(item[0],item[1],meta,available?String.format(Locale.CHINA,item[1].startsWith("F:")?"%.4f":"%.3f",q.optDouble("price")):"—",q.has("change")?String.format(Locale.CHINA,"%+.2f%%",change):"—",color));
   }
   return Collections.unmodifiableList(out);
  }

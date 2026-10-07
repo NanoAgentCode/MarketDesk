@@ -84,15 +84,14 @@ public final class Quotes {
   } else if(code.startsWith("E:")) {
    return eastmoney(code.substring(2));
   } else {
-   String raw=get("https://fundgz.1234567.com.cn/js/"+code.substring(2)+".js");
-   JSONObject d=new JSONObject(raw.substring(raw.indexOf('(')+1,raw.lastIndexOf(')')));
-   price=d.getDouble("gsz"); change=d.getDouble("gszzl"); time=d.getString("gztime"); unit="估算净值"; source="天天基金 · 估算非成交价";
+   return FundValuation.quote(FundData.valuation(code.substring(2)),System.currentTimeMillis());
   }
   if(!Double.isFinite(price)||!Double.isFinite(change)) throw new IOException("无效数据");
   return q.put("price",price).put("change",change).put("time",time).put("unit",unit).put("source",source).put("received",System.currentTimeMillis());
  }
  private static final Map<String,JSONObject> secondaryCache=new ConcurrentHashMap<>();
  static JSONObject fetch(String code) throws Exception {
+  if(code.startsWith("F:"))return fetchRaw(code);
   Map<String,String> plan=QuoteSources.plan(code);ExecutorService pool=Executors.newFixedThreadPool(plan.size());
   List<Future<JSONObject>> jobs=new ArrayList<>();List<String> ids=new ArrayList<>();String preferred=QuoteSources.provider(code);
   try{
@@ -105,7 +104,7 @@ public final class Quotes {
    List<JSONObject> quotes=new ArrayList<>();JSONArray failures=new JSONArray();
    for(int i=0;i<jobs.size();i++)try{quotes.add(jobs.get(i).get());}catch(ExecutionException e){Throwable cause=e.getCause();failures.put(new JSONObject().put("source",ids.get(i)).put("error",errorText(cause instanceof Exception?(Exception)cause:new IOException("获取失败"))));}
    if(quotes.isEmpty()){StringBuilder reason=new StringBuilder("全部行情源不可用");for(int i=0;i<failures.length();i++){JSONObject failure=failures.getJSONObject(i);reason.append("；").append(failure.optString("source")).append("：").append(failure.optString("error"));}throw new IOException(reason.toString());}
-   return QuoteVerification.combine(quotes,failures,System.currentTimeMillis());
+   JSONObject selected=QuoteVerification.combine(quotes,failures,System.currentTimeMillis());String secid=EtfReference.secid(code);if(!secid.isEmpty())selected.put("fundMetrics",FundData.etf(secid));return selected;
   }finally{pool.shutdownNow();}
  }
  public static String verificationDetails(JSONObject q){
