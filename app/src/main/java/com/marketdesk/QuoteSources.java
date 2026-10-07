@@ -14,5 +14,5 @@ public final class QuoteSources {
   return sources;
  }
  public static String provider(String code){return code.startsWith("Y:")?"yahoo":code.startsWith("E:")?"eastmoney":code.startsWith("T:")?"tencent":"fund";}
- public static String unit(String code){if(code.equals("Y:^IXIC")||code.equals("Y:^NDX")||code.equals("Y:HSTECH.HK")||code.equals("E:2.931250"))return "点";if(code.matches("E:[01]\\.[0-9]{6}")||code.matches("Y:[0-9]{6}\\.(SS|SZ)"))return "CNY";if(code.matches("Y:[0-9]{4,5}\\.HK"))return "HKD";return "";}
+ public static String unit(String code){if(Arrays.asList("Y:^IXIC","Y:^NDX","Y:^GSPC","Y:^DJI","Y:^HSI","Y:^HSCE","Y:HSTECH.HK","E:2.931250","E:1.000001","E:0.399001","E:1.000300","E:0.399006","Y:000001.SS","Y:399001.SZ","Y:000300.SS","Y:399006.SZ").contains(code))return "点";if(code.matches("E:[01]\\.[0-9]{6}")||code.matches("Y:[0-9]{6}\\.(SS|SZ)"))return "CNY";if(code.matches("Y:[0-9]{4,5}\\.HK"))return "HKD";return "";}
 }

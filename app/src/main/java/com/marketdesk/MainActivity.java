@@ -110,7 +110,8 @@ public class MainActivity extends Activity {
   String status=!q.has("price")?prefs().getString("error:"+item[1],"等待行情"):q.optString("source")+(Quotes.historical(q)?" · 历史行情":"")+(prefs().contains("error:"+item[1])?"\n"+prefs().getString("error:"+item[1],"")+"，保留缓存":System.currentTimeMillis()-q.optLong("received")>20*60000?" · 缓存待更新":"");
   String message="行情代码："+item[1]+"\n\n最新价："+price+(q.optString("unit").isEmpty()?"":" "+q.optString("unit"))+"\n涨跌幅："+change+"\n行情时间："+q.optString("time","—")+"（北京时间）\n\n数据状态："+status+"\n\n涨跌幅以上一交易日收盘价为基准。行情可能延迟。";
   if(item[1].startsWith("F:"))message=message.replace("最新价：",q.optString("kind").equals("nav")?"已公布净值：":"估算净值：").replace("涨跌幅：",q.optString("kind").equals("nav")?"净值涨跌幅（源未提供则为—）：":"估算涨跌幅：");
-  new AlertDialog.Builder(this).setTitle(item[0]).setMessage(message+FundData.details(q)+"\n\n交叉验证："+Quotes.verificationDetails(q)+"\n\n时间相近或同日历史数据才比较；价格容差0.1%，涨跌幅容差0.05个百分点。免费来源可能共享上游，不等于交易所独立确认。").setPositiveButton("关闭",null).show();
+  String type=RequestedFunds.type(item[1]);String marketNote=item[1].startsWith("F:")?"\n\n"+(type.isEmpty()?"":"基金类型："+type+"\n")+FundMarketHours.description(prefs().getString("fundMarket:"+item[1],""),System.currentTimeMillis()):"";
+  new AlertDialog.Builder(this).setTitle(item[0]).setMessage(message+FundData.details(q)+marketNote+"\n\n交叉验证："+Quotes.verificationDetails(q)+"\n\n时间相近或同日历史数据才比较；价格容差0.1%，涨跌幅容差0.05个百分点。免费来源可能共享上游，不等于交易所独立确认。").setPositiveButton("关闭",null).show();
  }
 
  private void renderWidget(){
@@ -187,8 +188,8 @@ public class MainActivity extends Activity {
   label(live,"每轮请求结束后等待所选间隔再刷新，App和小部件一起更新。最长2小时，显示常驻通知；越快越耗电，也更容易被行情源限流。",11,MUTED,false);content.addView(live);gap(content,14);
   LinearLayout system=card();label(system,"后台与通知",18,TEXT,true);label(system,"若 HyperOS 限制后台，可检查自启动、通知和应用省电设置。默认后台刷新约15分钟，系统可能延后。",12,MUTED,false);
   action(system,"打开应用系统设置",false,()->{try{startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:"+getPackageName())));}catch(RuntimeException e){toast("请从手机设置中打开行情桌面的应用详情");}});content.addView(system);gap(content,16);
-  LinearLayout funds=card();label(funds,"基金净值与估值",18,TEXT,true);label(funds,"ETF：更多中分别显示成交价、IOPV参考净值、折溢价和已公布净值。\n场外基金：来源选F，填六位代码；有盘中估值时显示估算，无估值时只显示已公布净值。\n免费来源可能延迟或缺失，各数据均保留自己的时间。",12,MUTED,false);action(funds,"添加基金 / ETF",false,()->addPreset());content.addView(funds);gap(content,14);
-  label(content,"行情桌面  1.8.0\n免费多源监测：Yahoo / 东方财富 / 腾讯财经\n成交行情交叉核对见自选「更多」，基金估值/IOPV另列。\n备用源及基金附加数据最多缓存60秒。",11,MUTED,false);
+  LinearLayout funds=card();label(funds,"基金净值与估值",18,TEXT,true);label(funds,"ETF：更多中分别显示成交价、IOPV参考净值、折溢价和已公布净值。\n主动/QDII/联接基金：按六位基金代码查询并跟随盯盘刷新。\n平台有估值才显示估算；无估值时只显示已公布净值。",12,MUTED,false);action(funds,"加入指定的5只基金",true,()->addRequestedFunds());action(funds,"查询其他主动 / 联接基金",false,()->addActiveFund());action(funds,"通过表格添加基金 / ETF",false,()->editWatchlist());content.addView(funds);gap(content,14);
+  label(content,"行情桌面  1.8.3\n免费多源监测：Yahoo / 东方财富 / 腾讯财经\n成交行情交叉核对见自选「更多」，基金估值/IOPV另列。\n备用源及基金附加数据最多缓存60秒。",11,MUTED,false);
  }
 
  private void startLive(){if(Build.VERSION.SDK_INT>=33 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS},7);return;}
@@ -197,6 +198,32 @@ public class MainActivity extends Activity {
  private String liveDescription(){long end=prefs().getLong("live_until",0);return LiveService.running && end>System.currentTimeMillis()?"盯盘运行中 · "+LiveService.interval(this)+"秒间隔 · 约 "+Math.max(1,(end-System.currentTimeMillis())/60000)+" 分钟后结束":"未开启 · 后台约15分钟更新";}
  private void chooseInterval(){int[] seconds={15,30,60,120};String[] options={"15秒","30秒（默认）","60秒","120秒"};int chosen=1;for(int i=0;i<seconds.length;i++)if(seconds[i]==LiveService.interval(this))chosen=i;
   new AlertDialog.Builder(this).setTitle("盯盘刷新间隔").setSingleChoiceItems(options,chosen,(dialog,index)->{prefs().edit().putInt("live_seconds",seconds[index]).apply();if(LiveService.running)try{startForegroundService(new Intent(this,LiveService.class));}catch(RuntimeException e){toast("通知状态将在下次开启盯盘时更新");}dialog.dismiss();switchPage(page);toast("已保存，新间隔在后续轮次生效");}).setNegativeButton("取消",null).show();
+ }
+ private void addActiveFund(){
+  String[] markets={"A股","港股","美股","多市场 / 其他"};
+  new AlertDialog.Builder(this).setTitle("主要投资市场（仅备注）").setItems(markets,(dialog,index)->{
+   LinearLayout box=column();box.setPadding(dp(20),dp(8),dp(20),dp(8));label(box,FundMarketHours.description(markets[index],System.currentTimeMillis()),12,MUTED,false);
+   EditText code=editorInput("","六位基金代码，例如005827",true);code.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);box.addView(code);
+   TextView state=label(box,"先查询估值是否存在；不会用指数涨幅代替基金估值。",12,MUTED,false);
+   AlertDialog input=new AlertDialog.Builder(this).setTitle("查询基金估值可用状态").setView(box).setPositiveButton("查询",null).setNegativeButton("取消",null).create();
+   input.setOnShowListener(d->input.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{String value=code.getText().toString().trim();if(!value.matches("[0-9]{6}")){state.setText("请填写六位基金代码");return;}
+    input.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(false);state.setText("正在查询估值和已公布净值…");
+    new Thread(()->{try{JSONObject metrics=FundData.valuation(value);JSONObject quote=FundValuation.quote(metrics,System.currentTimeMillis());handler.post(()->{
+     if(isFinishing()||isDestroyed()||!input.isShowing())return;input.dismiss();String name=metrics.optString("name",value);boolean estimated=metrics.has("estimate");
+     new AlertDialog.Builder(this).setTitle(name).setMessage((estimated?"平台有估算值，请先检查估值时间。":"平台目前没有盘中估值，只能监测已公布净值。")+FundData.details(quote)+"\n\n"+FundMarketHours.description(markets[index],System.currentTimeMillis())).setPositiveButton(estimated?"加入估值监测":"加入净值监测",(result,w)->{
+      String full="F:"+value;for(String[] item:Quotes.items(this))if(item[1].equals(full)){prefs().edit().putString("fundMarket:"+full,markets[index]).apply();RefreshWorker.afterEdit(this);toast("已在自选中，市场备注已更新");return;}
+      try{String next=Quotes.watch(this).trim()+"\n"+name+"|"+full;Quotes.validate(next);prefs().edit().putString("fundMarket:"+full,markets[index]).apply();saveWatch(next);}catch(IllegalArgumentException e){toast(e.getMessage());}
+     }).setNegativeButton("取消",null).show();
+    });}catch(Exception error){handler.post(()->{if(isFinishing()||isDestroyed()||!input.isShowing())return;input.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(true);state.setText("查询失败："+Quotes.errorText(error));});}},"fund-availability").start();
+   }));input.show();
+  }).setNegativeButton("取消",null).show();
+ }
+ private void addRequestedFunds(){
+  StringBuilder summary=new StringBuilder();for(RequestedFunds.Fund fund:RequestedFunds.FUNDS)summary.append(fund.name).append("（").append(fund.code).append("）\n").append(fund.type).append("\n\n");
+  summary.append("加入后按F基金代码监测，已有项不重复添加。估值是否可用取决于平台；无估值时显示已公布净值，不使用指数或目标ETF涨幅代替。");
+  new AlertDialog.Builder(this).setTitle("加入指定的5只基金").setMessage(summary).setPositiveButton("全部加入",(dialog,which)->{
+   try{String value=RequestedFunds.append(Quotes.watch(this));prefs().edit().putString("fundMarket:F:017436","美股").putString("fundMarket:F:013308","港股").putString("fundMarket:F:023638","A股").putString("fundMarket:F:100055","多市场 / 其他").putString("fundMarket:F:021030","港股").apply();saveWatch(value);}catch(IllegalArgumentException e){toast("加入失败："+e.getMessage()+"，现有自选已保留");}
+  }).setNegativeButton("取消",null).show();
  }
 
  private void editWatchlist(){
@@ -237,7 +264,20 @@ public class MainActivity extends Activity {
  }
  private EditText editorInput(String value,String hint,boolean code){EditText input=new EditText(this);input.setTextColor(TEXT);input.setHintTextColor(MUTED);input.setTextSize(13);input.setPadding(dp(5),dp(10),dp(5),dp(10));input.setMinHeight(dp(64));input.setSelectAllOnFocus(false);input.setInputType(android.text.InputType.TYPE_CLASS_TEXT|(code?android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS:0));input.setSingleLine(code);if(!code){input.setMaxLines(3);input.setHorizontallyScrolling(false);}input.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_DONE);input.setHint(hint);input.setText(value);return input;}
  private void editorControl(LinearLayout parent,String value,String description,boolean enabled,Runnable task){TextView control=label(null,value,20,enabled?(value.equals("×")?RED:ACCENT):MUTED,true);control.setGravity(Gravity.CENTER);control.setContentDescription(description);control.setEnabled(enabled);control.setAlpha(enabled?1:0.3f);control.setMinHeight(dp(48));control.setOnClickListener(v->task.run());parent.addView(control,new LinearLayout.LayoutParams(dp(48),dp(48)));}
- private void addPreset(){String[] names={"黄金ETF（518880）","黄金期货（美元/盎司）","苹果","腾讯","标普500指数","沪深300指数","纳斯达克100ETF（QQQ）","华安黄金ETF联接A（000216）","天弘食品饮料ETF联接C（001632）"};String[] codes={"E:1.518880","Y:GC=F","Y:AAPL","Y:0700.HK","Y:^GSPC","E:1.000300","Y:QQQ","F:000216","F:001632"};new AlertDialog.Builder(this).setTitle("添加常用标的").setItems(names,(d,index)->{for(String[] item:Quotes.items(this))if(item[1].equals(codes[index])){toast("已在自选列表中");return;}try{saveWatch(Quotes.watch(this).trim()+"\n"+names[index]+"|"+codes[index]);}catch(IllegalArgumentException e){toast(e.getMessage());}}).setNegativeButton("取消",null).show();}
+ private void addPreset(){
+  String[] markets={"美股代表性指数","A股代表性指数","港股代表性指数"};
+  String[][] names={{"纳斯达克综合指数","纳斯达克100指数","标普500指数","道琼斯工业指数"},{"上证指数","深证成指","沪深300指数","创业板指数"},{"恒生指数","恒生科技指数","恒生国企指数"}};
+  String[][] codes={{"Y:^IXIC","Y:^NDX","Y:^GSPC","Y:^DJI"},{"E:1.000001","E:0.399001","E:1.000300","E:0.399006"},{"Y:^HSI","Y:HSTECH.HK","Y:^HSCE"}};
+  new AlertDialog.Builder(this).setTitle("添加常用标的 · 选择市场").setItems(markets,(dialog,market)->{
+   Set<String> watched=new HashSet<>();for(String[] item:Quotes.items(this))watched.addAll(QuoteSources.plan(item[1]).values());
+   List<String> availableNames=new ArrayList<>(),availableCodes=new ArrayList<>();for(int i=0;i<codes[market].length;i++)if(!watched.contains(codes[market][i])){availableNames.add(names[market][i]);availableCodes.add(codes[market][i]);}
+   AlertDialog.Builder options=new AlertDialog.Builder(this).setTitle(markets[market]);
+   if(availableCodes.isEmpty())options.setMessage("该市场的常用指数均已加入自选。");else options.setItems(availableNames.toArray(new String[0]),(d,index)->{
+    String code=availableCodes.get(index);for(String[] item:Quotes.items(this))if(QuoteSources.plan(item[1]).containsValue(code)){toast("已在自选列表中");return;}
+    try{saveWatch(Quotes.watch(this).trim()+"\n"+availableNames.get(index)+"|"+code);}catch(IllegalArgumentException e){toast(e.getMessage());}
+   });options.setNegativeButton("返回市场",(d,w)->addPreset()).show();
+  }).setNegativeButton("取消",null).show();
+ }
  private void saveWatch(String value){Quotes.validate(value);prefs().edit().putString("watch",value).apply();MarketWidget.render(this);RefreshWorker.afterEdit(this);switchPage(page);toast("自选已保存，已同步到桌面小部件");}
  private String quoteStatus(String code,JSONObject q){if(!q.has("price"))return prefs().getString("error:"+code,"正在等待行情");boolean failed=prefs().contains("error:"+code);boolean stale=System.currentTimeMillis()-q.optLong("received")>20*60000;return q.optString("time")+" · "+q.optString("source")+(Quotes.historical(q)?" · 历史行情":"")+(failed?" · 更新失败，缓存":stale?" · 缓存待更新":"");}
  private String market(String code){if(code.startsWith("F:"))return "基金估算";if(code.equals("Y:GC=F"))return "黄金期货";if(code.endsWith(".HK")||code.equals("E:2.931250"))return "港股 / 指数";if(code.startsWith("E:")||code.endsWith(".SS")||code.endsWith(".SZ"))return "A股 / 指数 / ETF";return "美股 / 指数 / ETF";}
