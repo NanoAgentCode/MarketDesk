@@ -29,6 +29,16 @@ public class MainNavigationLayoutTest {
   }
 
   @Test
+  public void singlePageHostIsFixedAndOutsideTheScrollView() throws Exception {
+    Element root = layout(), host = find(root, "@+id/single_page_content");
+    assertSame(root, host.getParentNode());
+    assertEquals("LinearLayout", host.getTagName());
+    assertEquals("0dp", host.getAttributeNS(ANDROID, "layout_height"));
+    assertEquals("1", host.getAttributeNS(ANDROID, "layout_weight"));
+    assertEquals("gone", host.getAttributeNS(ANDROID, "visibility"));
+  }
+
+  @Test
   public void navigationIsOutsideScrollingContentAndLastInTheRoot() throws Exception {
     Element root = layout(), dock = find(root, "@+id/navigation_tabs");
     assertEquals("LinearLayout", root.getTagName());

@@ -125,6 +125,10 @@ public class MainActivity extends Activity {
     pageActions.hide();
     if (pageScroll != null) pageScroll.scrollTo(0, 0);
     page = selected;
+    pageScroll.setVisibility(page == 0 ? View.VISIBLE : View.GONE);
+    LinearLayout singlePage = findViewById(R.id.single_page_content);
+    singlePage.setVisibility(page == 0 ? View.GONE : View.VISIBLE);
+    content = page == 0 ? findViewById(R.id.page_content) : singlePage;
     tabs.removeAllViews();
     String[] names = {"自选", "桌面", "设置"};
     for (int i = 0; i < names.length; i++) {
@@ -301,23 +305,24 @@ public class MainActivity extends Activity {
     content.removeAllViews();
     views.label(content, "把关注，放在桌面", 24, TEXT, true);
     views.label(content, "随手看涨跌，不用每次打开 App。", 13, MUTED, false);
-    views.gap(content, 18);
+    views.gap(content, 8);
     widgetPreviewInfo = views.label(content, "", 12, MUTED, false);
     widgetPreviewHost = new FrameLayout(this);
-    content.addView(widgetPreviewHost, new LinearLayout.LayoutParams(-1, views.dp(280)));
+    content.addView(widgetPreviewHost, new LinearLayout.LayoutParams(-1, 0, 1));
+    widgetPreviewHost.addOnLayoutChangeListener(
+        (v, l, t, r, b, ol, ot, or, ob) -> {
+          if (r - l != or - ol || b - t != ob - ot) refreshWidgetPreview(true);
+        });
     refreshWidgetPreview(true);
-    views.label(content, "预览与小部件共用布局及行情，较大尺寸会缩放。底部「桌面」菜单可切换预览或添加小部件。", 11, MUTED, false);
-    views.gap(content, 20);
+    views.label(content, "底部「桌面」菜单可切换预览或添加小部件。", 11, MUTED, false);
+    views.gap(content, 8);
     pinStatus = views.label(content, "", 12, MUTED, false);
     updatePinStatus();
-    views.gap(content, 16);
+    views.gap(content, 8);
     LinearLayout help = views.card();
-    views.label(help, "没有弹出添加窗口？", 16, TEXT, true);
-    views.label(help, "桌面由系统处理添加请求。可以直接在手机桌面手动选择小部件。", 12, MUTED, false);
-    views.gap(help, 8);
-    views.label(
-        help, "01  回到桌面，长按空白位置或双指捏合\n02  打开「小部件 / 添加小部件」\n03  找到「行情桌面」，拖到空白区域", 13, TEXT, false);
-    views.label(help, "HyperOS 入口随版本不同；部分版本需进入「全部小部件 / 安卓小部件」列表。", 11, MUTED, false);
+    views.label(help, "手动添加小部件 ›", 16, TEXT, true);
+    views.label(help, "长按手机桌面 → 小部件 → 行情桌面。点击查看完整指引。", 12, MUTED, false);
+    help.setOnClickListener(v -> manualHelp());
     content.addView(help);
   }
 
@@ -375,16 +380,20 @@ public class MainActivity extends Activity {
             + " 项");
     widgetPreviewHost.removeAllViews();
     View rendered = MarketWidget.views(this, height, batch).apply(this, widgetPreviewHost);
-    int available = getResources().getDisplayMetrics().widthPixels - views.dp(40);
-    float scale = Math.min(1f, (float) Math.max(views.dp(180), available) / views.dp(width));
+    int availableWidth = widgetPreviewHost.getWidth();
+    int availableHeight = widgetPreviewHost.getHeight();
+    float scale =
+        Math.min(
+            1f,
+            Math.min(
+                (float) availableWidth / views.dp(width),
+                (float) availableHeight / views.dp(height)));
     rendered.setPivotX(0);
     rendered.setPivotY(0);
     rendered.setScaleX(scale);
     rendered.setScaleY(scale);
     widgetPreviewHost.addView(
         rendered, new FrameLayout.LayoutParams(views.dp(width), views.dp(height)));
-    widgetPreviewHost.getLayoutParams().height = Math.round(views.dp(height) * scale);
-    widgetPreviewHost.requestLayout();
     View refresh = rendered.findViewById(R.id.refresh);
     refresh.setOnClickListener(
         v -> {
@@ -507,40 +516,41 @@ public class MainActivity extends Activity {
     content.removeAllViews();
     views.label(content, "按你的习惯看行情", 24, TEXT, true);
     views.label(content, "状态与说明在这里查看，操作集中在底部「设置」菜单。", 13, MUTED, false);
-    views.gap(content, 18);
-    LinearLayout watch = views.card();
+    views.gap(content, 8);
+    LinearLayout watch = compactSettingsCard();
     views.label(watch, "自选管理", 18, TEXT, true);
     views.label(watch, "当前关注 " + Quotes.items(this).size() + " 项，桌面与 App 同步。", 12, MUTED, false);
     content.addView(watch);
-    views.gap(content, 14);
-    LinearLayout live = views.card();
+    views.gap(content, 8);
+    LinearLayout live = compactSettingsCard();
     views.label(live, "盯盘模式", 18, TEXT, true);
     liveStatus = views.label(live, liveDescription(), 12, MUTED, false);
-    views.label(
-        live, "每轮请求结束后等待所选间隔再刷新，App和小部件一起更新。最长2小时，显示常驻通知；越快越耗电，也更容易被行情源限流。", 11, MUTED, false);
+    views.label(live, "App 与小部件同步刷新，最长2小时并显示常驻通知。间隔越短越耗电，越容易限流。", 11, MUTED, false);
     content.addView(live);
-    views.gap(content, 14);
-    LinearLayout system = views.card();
+    views.gap(content, 8);
+    LinearLayout system = compactSettingsCard();
     views.label(system, "后台与通知", 18, TEXT, true);
-    views.label(system, "若 HyperOS 限制后台，可检查自启动、通知和应用省电设置。默认后台刷新约15分钟，系统可能延后。", 12, MUTED, false);
+    views.label(system, "后台约15分钟刷新，系统可能延后。HyperOS 请检查自启动、通知和省电设置。", 12, MUTED, false);
     content.addView(system);
-    views.gap(content, 16);
-    LinearLayout funds = views.card();
+    views.gap(content, 8);
+    LinearLayout funds = compactSettingsCard();
     views.label(funds, "基金净值与估值", 18, TEXT, true);
     views.label(
-        funds,
-        "ETF：更多中查看IOPV、折溢价和净值。\n主动/QDII/联接基金：按六位代码监测。主列表显示平台估值或净值，持仓参考与计算依据放在「更多」。",
-        12,
-        MUTED,
-        false);
+        funds, "ETF 的 IOPV、折溢价与净值见「更多」。\n主动/QDII/联接基金按六位代码监测；持仓参考与计算依据见「更多」。", 12, MUTED, false);
     content.addView(funds);
-    views.gap(content, 14);
+    views.gap(content, 8);
     views.label(
         content,
         "行情桌面  1.9.0\n免费多源监测：Yahoo / 东方财富 / 腾讯财经\n基金参考见「更多」；行情与汇率最多缓存60秒，持仓缓存一天。",
         11,
         MUTED,
         false);
+  }
+
+  private LinearLayout compactSettingsCard() {
+    LinearLayout card = views.card();
+    card.setPadding(views.dp(14), views.dp(8), views.dp(14), views.dp(8));
+    return card;
   }
 
   private void startLive() {
