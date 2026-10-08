@@ -4,11 +4,15 @@ import java.util.*;
 import java.util.concurrent.*;
 public final class FundData {
  private static final Map<String,JSONObject> navCache=new ConcurrentHashMap<>(),etfCache=new ConcurrentHashMap<>();
+ private static final FundReferenceData references=new FundReferenceData();
  public static JSONObject valuation(String code) throws Exception {
   long now=System.currentTimeMillis();JSONObject old=navCache.get(code);if(old!=null&&now-old.optLong("checkedAt")<60000)return new JSONObject(old.toString());
   Exception failure=null;for(String host:new String[]{"fundcomapi.tiantianfunds.com","fundcomapi.eastmoney.com"})try{
    JSONObject values=FundValuation.parse(Quotes.get("https://"+host+"/mm/newCore/FundValuationLast?FCODES="+code+"&FIELDS=FCODE,SHORTNAME,GSZZL,GZTIME,GSZ,NAV,PDATE"),code).put("checkedAt",now);navCache.put(code,new JSONObject(values.toString()));return values;
   }catch(Exception e){failure=e;}throw failure;
+ }
+ public static JSONObject monitored(String code) throws Exception {
+  JSONObject values=valuation(code);values.put("holdingsReference",references.reference(code,values.optJSONObject("nav")));return values;
  }
  public static JSONObject etf(String secid) {
   long now=System.currentTimeMillis();JSONObject old=etfCache.get(secid);if(old!=null&&now-old.optLong("checkedAt")<60000)try{return new JSONObject(old.toString());}catch(Exception ignored){}
@@ -33,6 +37,7 @@ public final class FundData {
   }
   JSONObject estimate=values.optJSONObject("estimate");if(estimate==null)out.append("\n盘中估算净值：暂未提供");else{out.append(String.format(Locale.CHINA,"\n盘中估算净值：%.4f",estimate.optDouble("value")));if(estimate.has("change"))out.append(String.format(Locale.CHINA,"（%+.2f%%）",estimate.optDouble("change")));out.append("\n估值时间：").append(estimate.optString("time")).append("\n第三方估算，不是IOPV或正式净值。");}
   JSONObject nav=values.optJSONObject("nav");if(nav==null)out.append("\n已公布净值：暂未提供");else out.append(String.format(Locale.CHINA,"\n已公布净值：%.4f\n净值日期：%s",nav.optDouble("value"),nav.optString("date")));
-  out.append("\n日期早于当前交易日时为历史数据；无估值不推算补齐。折溢价仅使用同一行情包的成交价和IOPV。");return out.toString();
+  out.append(FundReference.summary(values.optJSONObject("holdingsReference")));
+  out.append(values.optString("type").equals("etf")?"\n日期早于当前交易日时为历史数据；折溢价仅使用同包成交价和IOPV。":"\n主列表显示平台估值或已公布净值；持仓参考单独列示。");return out.toString();
  }
 }

@@ -22,6 +22,7 @@ public final class FundValuation {
   boolean estimated=values.has("estimate");JSONObject value=values.optJSONObject(estimated?"estimate":"nav");if(value==null)throw new IOException("该基金暂未提供估值或已公布净值");
   JSONObject q=new JSONObject().put("price",value.getDouble("value")).put("unit",estimated?"估算净值":"已公布净值").put("kind",estimated?"estimate":"nav").put("time",estimated?value.getString("time"):value.getString("date")+" 净值").put("dataTime",value.getLong("dataTime")).put("received",now).put("source",value.getString("source")).put("origin","fund");
   if(value.has("change"))q.put("change",value.getDouble("change"));
-  values.put("type","fund");return q.put("fundMetrics",values).put("verification","single").put("verificationLabel",estimated?"单源基金估算":"已公布净值，暂无盘中估值").put("verificationShort",estimated?"单源":"净值").put("verifiedAt",now);
+  JSONObject reference=values.optJSONObject("holdingsReference");boolean hasReference=reference!=null&&reference.has("contribution");
+  values.put("type","fund");return q.put("fundMetrics",values).put("verification","single").put("verificationLabel",estimated?"单源基金估算":hasReference?"已公布净值；持仓参考见更多":"已公布净值，暂无盘中估值").put("verificationShort",estimated?"单源":hasReference?"参考":"净值").put("verifiedAt",now);
  }
 }

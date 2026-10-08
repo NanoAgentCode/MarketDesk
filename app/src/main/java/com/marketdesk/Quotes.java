@@ -84,7 +84,7 @@ public final class Quotes {
   } else if(code.startsWith("E:")) {
    return eastmoney(code.substring(2));
   } else {
-   return FundValuation.quote(FundData.valuation(code.substring(2)),System.currentTimeMillis());
+   return FundValuation.quote(FundData.monitored(code.substring(2)),System.currentTimeMillis());
   }
   if(!Double.isFinite(price)||!Double.isFinite(change)) throw new IOException("无效数据");
   return q.put("price",price).put("change",change).put("time",time).put("unit",unit).put("source",source).put("received",System.currentTimeMillis());
