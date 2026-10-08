@@ -172,8 +172,14 @@
 
 使用公开网页行情接口，非有 SLA 的商业行情服务。Yahoo 在部分网络可能不可达；东方财富及天天基金可能限流、调整字段或下线。港股通创新药指数的 `E:2.931250` 市场映射已通过东方财富行情页面和实际分时返回核验；缺失时明确显示失败，不替换成ETF。
 
-当前项目已配置本地编译环境：使用现有 `D:/Program Files/jdk/17` 的 JDK17，Gradle8.9 和 Android SDK35 安装在 `.tools` 内。执行 `powershell -ExecutionPolicy Bypass -File .\build.ps1` 构建，首次依赖下载需要联网。未完成红米真机验证。纳斯达克综合指数和港股通创新药指数接口已取得实际响应；其他品种仍需逐项核验。
+当前项目已配置本地编译环境：构建脚本读取 `JAVA_HOME`（JDK17或更新版本），Gradle8.9 和 Android SDK35 安装在 `.tools` 内。执行 `powershell -ExecutionPolicy Bypass -File .\build.ps1` 构建，加入 `-Verify` 同时运行测试和 lint；首次依赖下载需要联网。未完成红米真机验证。纳斯达克综合指数和港股通创新药指数接口已取得实际响应；其他品种仍需逐项核验。
 
 真机验收：核对五项代码、币种及昨收涨跌幅；断网检查缓存标记；点刷新并对照行情时间；启动/停止盯盘；拉伸小部件；重启后检查后台任务；测试跨时区及休市显示。
 
 参考：Android 小部件后台刷新 https://developer.android.com/develop/ui/views/appwidgets/advanced ，前台服务限制 https://developer.android.com/develop/background-work/services/fgs/timeout 。
+
+## 代码结构与维护
+
+网络接口、数据仓库、请求缓存、解析计算、文本展示和原生弹窗分别维护，`Quotes` / `FundData` 保留轻量调用入口。页面、偏好设置键和 JSON 缓存格式保持兼容。
+
+模块职责、依赖关系及修改指南见 [代码结构与维护](docs/architecture.md)。本次重构通过152项测试、构建和 lint；四只基金的实际 Java 取数链路再次验证可用，手机界面仍需真机验收。
