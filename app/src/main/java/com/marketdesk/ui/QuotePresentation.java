@@ -1,7 +1,7 @@
 package com.marketdesk.ui;
 
 import com.marketdesk.FundMarketHours;
-import com.marketdesk.RequestedFunds;
+import com.marketdesk.FundTypes;
 import com.marketdesk.data.MarketTime;
 import java.util.*;
 import org.json.*;
@@ -21,7 +21,7 @@ public final class QuotePresentation {
                     ? "\n" + error + "，保留缓存"
                     : now - quote.optLong("received") > 20 * 60000 ? " · 缓存待更新" : "");
     if (code.startsWith("F:")) {
-      String type = RequestedFunds.type(code);
+      String type = FundTypes.type(code);
       return "基金代码："
           + code
           + "\n\n数据状态："

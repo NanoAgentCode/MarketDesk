@@ -135,41 +135,4 @@ public final class FundDialogs {
       views.toast(error.getMessage());
     }
   }
-
-  public void showRequested() {
-    StringBuilder summary = new StringBuilder();
-    for (RequestedFunds.Fund fund : RequestedFunds.FUNDS) {
-      summary
-          .append(fund.name)
-          .append("（")
-          .append(fund.code)
-          .append("）\n")
-          .append(fund.type)
-          .append("\n\n");
-    }
-    summary.append("加入后按F基金代码监测，已有项不重复添加。平台估值与净值在主列表显示，披露持仓参考见「更多」。");
-    new AlertDialog.Builder(activity)
-        .setTitle("加入指定的5只基金")
-        .setMessage(summary)
-        .setPositiveButton("全部加入", (dialog, which) -> addRequested())
-        .setNegativeButton("取消", null)
-        .show();
-  }
-
-  private void addRequested() {
-    try {
-      String value = RequestedFunds.append(Quotes.watch(activity));
-      prefs()
-          .edit()
-          .putString("fundMarket:F:017436", "美股")
-          .putString("fundMarket:F:013308", "港股")
-          .putString("fundMarket:F:023638", "A股")
-          .putString("fundMarket:F:100055", "多市场 / 其他")
-          .putString("fundMarket:F:021030", "港股")
-          .apply();
-      saveWatch.accept(value);
-    } catch (IllegalArgumentException error) {
-      views.toast("加入失败：" + error.getMessage() + "，现有自选已保留");
-    }
-  }
 }

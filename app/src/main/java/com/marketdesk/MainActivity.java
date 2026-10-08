@@ -20,6 +20,7 @@ public class MainActivity extends Activity {
   private WatchlistEditor watchlistEditor;
   private FundDialogs fundDialogs;
   private QuoteDetailsDialog quoteDetails;
+  private PageActionMenu pageActions;
   private final Handler handler = new Handler(Looper.getMainLooper());
   private LinearLayout content, tabs;
   private TextView pinStatus, liveStatus;
@@ -68,6 +69,7 @@ public class MainActivity extends Activity {
     watchlistEditor = new WatchlistEditor(this, views, () -> Quotes.watch(this), this::saveWatch);
     fundDialogs = new FundDialogs(this, handler, views, this::saveWatch);
     quoteDetails = new QuoteDetailsDialog(this);
+    pageActions = new PageActionMenu(this, this::executePageAction);
     if (saved != null) {
       page = saved.getInt("page");
       requestToken = saved.getLong("pinToken");
@@ -84,7 +86,8 @@ public class MainActivity extends Activity {
             View.SYSTEM_UI_FLAG_LAYOUT_STABLE
                 | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
                 | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
-    LinearLayout root = views.column();
+    setContentView(R.layout.activity_main);
+    LinearLayout root = findViewById(R.id.app_root);
     root.setBackgroundColor(BG);
     root.setOnApplyWindowInsetsListener(
         (v, insets) -> {
@@ -92,10 +95,9 @@ public class MainActivity extends Activity {
               views.dp(20),
               insets.getSystemWindowInsetTop() + views.dp(12),
               views.dp(20),
-              insets.getSystemWindowInsetBottom());
+              insets.getSystemWindowInsetBottom() + views.dp(12));
           return insets;
         });
-    setContentView(root);
     root.requestApplyInsets();
     LinearLayout header = views.row();
     header.setPadding(0, views.dp(8), 0, views.dp(18));
@@ -107,18 +109,12 @@ public class MainActivity extends Activity {
     badge.setPadding(views.dp(12), views.dp(8), views.dp(12), views.dp(8));
     badge.setBackground(views.bg(CARD, 12));
     header.addView(badge);
-    root.addView(header);
-    tabs = views.row();
-    tabs.setPadding(views.dp(4), views.dp(4), views.dp(4), views.dp(4));
+    FrameLayout headerHost = findViewById(R.id.page_header);
+    headerHost.addView(header, new FrameLayout.LayoutParams(-1, -2));
+    tabs = findViewById(R.id.navigation_tabs);
     tabs.setBackground(views.bg(CARD, 16));
-    root.addView(tabs);
-    pageScroll = new ScrollView(this);
-    pageScroll.setFillViewport(true);
-    pageScroll.setClipToPadding(false);
-    pageScroll.setPadding(0, views.dp(20), 0, views.dp(20));
-    content = views.column();
-    pageScroll.addView(content);
-    root.addView(pageScroll, new LinearLayout.LayoutParams(-1, 0, 1));
+    pageScroll = findViewById(R.id.page_scroll);
+    content = findViewById(R.id.page_content);
     switchPage(page);
     RefreshWorker.schedule(this);
     RefreshWorker.now(this);
@@ -126,18 +122,29 @@ public class MainActivity extends Activity {
   }
 
   private void switchPage(int selected) {
+    pageActions.hide();
     if (pageScroll != null) pageScroll.scrollTo(0, 0);
     page = selected;
     tabs.removeAllViews();
     String[] names = {"自选", "桌面", "设置"};
     for (int i = 0; i < names.length; i++) {
       final int target = i;
-      TextView tab = views.label(null, names[i], 14, i == page ? BG : MUTED, i == page);
+      TextView tab =
+          views.label(
+              null, names[i] + (i == page ? " ▴" : ""), 14, i == page ? BG : MUTED, i == page);
       tab.setGravity(Gravity.CENTER);
+      tab.setMinHeight(views.dp(48));
+      tab.setSelected(i == page);
+      tab.setContentDescription(names[i] + (i == page ? "，当前页面，再次点击打开操作菜单" : "，切换页面"));
       tab.setPadding(views.dp(4), views.dp(12), views.dp(4), views.dp(12));
       if (i == page) tab.setBackground(views.bg(ACCENT, 12));
       tabs.addView(tab, new LinearLayout.LayoutParams(0, -2, 1));
-      tab.setOnClickListener(v -> switchPage(target));
+      tab.setOnClickListener(
+          v -> {
+            if (PageActions.opensMenu(page, target))
+              pageActions.show(v, page, LiveService.interval(this), LiveService.running);
+            else switchPage(target);
+          });
     }
     pinStatus = null;
     liveStatus = null;
@@ -166,17 +173,6 @@ public class MainActivity extends Activity {
         12,
         MUTED,
         false);
-    LinearLayout tools = views.row();
-    views.halfAction(
-        tools,
-        "↻  刷新",
-        true,
-        () -> {
-          RefreshWorker.now(this);
-          views.toast("已安排刷新，有网络时执行");
-        });
-    views.halfAction(tools, "编辑表格", false, () -> editWatchlist());
-    content.addView(tools);
     long attempt = prefs().getLong("attempt", 0);
     views.label(
         content,
@@ -250,20 +246,68 @@ public class MainActivity extends Activity {
     quoteDetails.show(item);
   }
 
+  private void executePageAction(PageActions.Action action) {
+    switch (action) {
+      case REFRESH:
+        RefreshWorker.now(this);
+        views.toast("已安排刷新，有网络时执行");
+        break;
+      case EDIT_WATCHLIST:
+        editWatchlist();
+        break;
+      case CHOOSE_PREVIEW:
+        choosePreviewWidget();
+        break;
+      case PIN_WIDGET:
+        requestWidget();
+        break;
+      case WIDGET_HELP:
+        manualHelp();
+        break;
+      case ADD_PRESET:
+        addPreset();
+        break;
+      case REFRESH_INTERVAL:
+        chooseInterval();
+        break;
+      case START_LIVE:
+        startLive();
+        break;
+      case STOP_LIVE:
+        stopService(new Intent(this, LiveService.class));
+        if (liveStatus != null) liveStatus.setText("已结束盯盘 · 后台约15分钟更新");
+        break;
+      case SYSTEM_SETTINGS:
+        openSystemSettings();
+        break;
+      case MANAGE_FUNDS:
+        addActiveFund();
+        break;
+    }
+  }
+
+  private void openSystemSettings() {
+    try {
+      startActivity(
+          new Intent(
+              Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+              Uri.parse("package:" + getPackageName())));
+    } catch (RuntimeException error) {
+      views.toast("请从手机设置中打开行情桌面的应用详情");
+    }
+  }
+
   private void renderWidget() {
     content.removeAllViews();
     views.label(content, "把关注，放在桌面", 24, TEXT, true);
     views.label(content, "随手看涨跌，不用每次打开 App。", 13, MUTED, false);
     views.gap(content, 18);
     widgetPreviewInfo = views.label(content, "", 12, MUTED, false);
-    widgetPreviewInfo.setOnClickListener(v -> choosePreviewWidget());
     widgetPreviewHost = new FrameLayout(this);
     content.addView(widgetPreviewHost, new LinearLayout.LayoutParams(-1, views.dp(280)));
     refreshWidgetPreview(true);
-    views.label(content, "预览与小部件共用布局及行情，较大尺寸会缩放。点击上方可切换小部件。", 11, MUTED, false);
+    views.label(content, "预览与小部件共用布局及行情，较大尺寸会缩放。底部「桌面」菜单可切换预览或添加小部件。", 11, MUTED, false);
     views.gap(content, 20);
-    views.action(content, "编辑名称 / 代码", false, () -> editWatchlist());
-    views.action(content, "＋  添加到桌面", true, () -> requestWidget());
     pinStatus = views.label(content, "", 12, MUTED, false);
     updatePinStatus();
     views.gap(content, 16);
@@ -274,7 +318,6 @@ public class MainActivity extends Activity {
     views.label(
         help, "01  回到桌面，长按空白位置或双指捏合\n02  打开「小部件 / 添加小部件」\n03  找到「行情桌面」，拖到空白区域", 13, TEXT, false);
     views.label(help, "HyperOS 入口随版本不同；部分版本需进入「全部小部件 / 安卓小部件」列表。", 11, MUTED, false);
-    views.action(help, "查看添加指引", false, () -> manualHelp());
     content.addView(help);
   }
 
@@ -463,29 +506,16 @@ public class MainActivity extends Activity {
   private void renderSettings() {
     content.removeAllViews();
     views.label(content, "按你的习惯看行情", 24, TEXT, true);
-    views.label(content, "自选、刷新和后台运行，在这里管理。", 13, MUTED, false);
+    views.label(content, "状态与说明在这里查看，操作集中在底部「设置」菜单。", 13, MUTED, false);
     views.gap(content, 18);
     LinearLayout watch = views.card();
     views.label(watch, "自选管理", 18, TEXT, true);
     views.label(watch, "当前关注 " + Quotes.items(this).size() + " 项，桌面与 App 同步。", 12, MUTED, false);
-    views.action(watch, "编辑自选列表", false, () -> editWatchlist());
-    views.action(watch, "添加常用标的", false, () -> addPreset());
     content.addView(watch);
     views.gap(content, 14);
     LinearLayout live = views.card();
     views.label(live, "盯盘模式", 18, TEXT, true);
     liveStatus = views.label(live, liveDescription(), 12, MUTED, false);
-    views.action(
-        live, "刷新间隔：" + LiveService.interval(this) + " 秒（点击修改）", false, () -> chooseInterval());
-    views.action(live, "开启盯盘", true, () -> startLive());
-    views.action(
-        live,
-        "结束盯盘",
-        false,
-        () -> {
-          stopService(new Intent(this, LiveService.class));
-          liveStatus.setText("已结束盯盘 · 后台约15分钟更新");
-        });
     views.label(
         live, "每轮请求结束后等待所选间隔再刷新，App和小部件一起更新。最长2小时，显示常驻通知；越快越耗电，也更容易被行情源限流。", 11, MUTED, false);
     content.addView(live);
@@ -493,20 +523,6 @@ public class MainActivity extends Activity {
     LinearLayout system = views.card();
     views.label(system, "后台与通知", 18, TEXT, true);
     views.label(system, "若 HyperOS 限制后台，可检查自启动、通知和应用省电设置。默认后台刷新约15分钟，系统可能延后。", 12, MUTED, false);
-    views.action(
-        system,
-        "打开应用系统设置",
-        false,
-        () -> {
-          try {
-            startActivity(
-                new Intent(
-                    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                    Uri.parse("package:" + getPackageName())));
-          } catch (RuntimeException e) {
-            views.toast("请从手机设置中打开行情桌面的应用详情");
-          }
-        });
     content.addView(system);
     views.gap(content, 16);
     LinearLayout funds = views.card();
@@ -517,9 +533,6 @@ public class MainActivity extends Activity {
         12,
         MUTED,
         false);
-    views.action(funds, "加入指定的5只基金", true, () -> addRequestedFunds());
-    views.action(funds, "查询其他主动 / 联接基金", false, () -> addActiveFund());
-    views.action(funds, "通过表格添加基金 / ETF", false, () -> editWatchlist());
     content.addView(funds);
     views.gap(content, 14);
     views.label(
@@ -599,10 +612,6 @@ public class MainActivity extends Activity {
 
   private void addActiveFund() {
     fundDialogs.showQuery();
-  }
-
-  private void addRequestedFunds() {
-    fundDialogs.showRequested();
   }
 
   private void editWatchlist() {
@@ -706,6 +715,7 @@ public class MainActivity extends Activity {
   @Override
   protected void onPause() {
     super.onPause();
+    pageActions.hide();
     resumed = false;
     prefs().unregisterOnSharedPreferenceChangeListener(quoteListener);
     handler.removeCallbacks(tick);
@@ -715,6 +725,7 @@ public class MainActivity extends Activity {
   @Override
   protected void onDestroy() {
     handler.removeCallbacksAndMessages(null);
+    if (pageActions != null) pageActions.hide();
     if (watchlistEditor != null) watchlistEditor.dismiss();
     super.onDestroy();
   }
